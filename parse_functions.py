@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup
 from variables import api_key
 
 
-def APIparse(df, num_pages=1):
+def APIparse(df: pd.DataFrame, num_pages: int) -> pd.DataFrame:
     """
     Парсит новости используя NewsAPI
 
@@ -44,7 +44,7 @@ def APIparse(df, num_pages=1):
 
         return df
     
-def RSSparse(df, link):
+def RSSparse(df: pd.DataFrame, link: str) -> pd.DataFrame:
     """
     Парсит новости используя RSS страничку портала
 
