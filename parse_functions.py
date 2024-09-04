@@ -1,6 +1,8 @@
 import requests
 import pandas as pd
 import feedparser
+import time
+from bs4 import BeautifulSoup
 from variables import api_key
 
 
@@ -11,7 +13,7 @@ def APIparse(df, num_pages=1):
     :param DataFrame df: Датафрейм, куда запишутся данные
     :param int num_pages: Количество страниц, подвергнутых парсингу
 
-    :return: DataFrame df с записанными новостями
+    :return: DataFrame df с записанными новостями (title/description/publishedAt)
 
     """
     for i in range(4):
@@ -49,7 +51,7 @@ def RSSparse(df, link):
     :param DataFrame df: Датафрейм, куда запишутся данные
     :param str link: URL RSS страницы портала
 
-    :return: DataFrame df с записанными новостями
+    :return: DataFrame df с записанными новостями (title/description/publishedAt)
 
     """
     feed = feedparser.parse(link)
@@ -74,3 +76,62 @@ def RSSparse(df, link):
     df = pd.concat([df, temp_df], ignore_index=True)
 
     return df
+
+def MKparse(years: tuple, months: tuple, days: tuple) -> dict:
+    """
+    Парсит новости используя BS4
+    :param years tuple: Диапазон годов для парсинга новостей
+    :param months tuple: Диапазон месяцев для парсинга новостей
+    :param days tuple: Диапазон дней для парсинга новостей
+
+    :return: dict с записанными новостями (title/description/publishedAt)
+
+    """
+    annual = []
+    month = []
+    date = []
+    data = {'title': [], 'description': [], 'publishedAt': []}
+
+    for i in range(years[0], years[1]):
+        annual.append(i)
+    for i in range(months[0], months[1]):
+        month.append(i)
+    for i in range(days[0], days[1]):
+        date.append(i)
+
+    for i in annual:
+        for j in month:
+            for k in date:
+                print(f'Date:{i}/{j}/{k}')
+                url = f"https://www.mk.ru/economics/{i}/{j}/{k}/"
+                response = requests.get(url)
+
+                if response.status_code == 200:
+                    html_content = response.text
+                    soup = BeautifulSoup(html_content, 'html.parser')
+                    news_title = soup.find('ul', class_='article-listing__grid-list').find_all('h3', class_='article-preview__title')
+                    news_description = soup.find_all('p', class_='article-preview__desc')
+                    news_date = f'{k}/{j}/{i}'
+
+                    for tit in news_title:
+                        title = tit.get_text()
+                        data['title'].append(title)
+                        print(title)
+                        data['publishedAt'].append(news_date)
+                        time.sleep(0.10)
+
+                    for desc in news_description:
+                        if desc is None:
+                            data['description'].append(0)
+                            print(f'No description at data {news_date}')
+                        else:
+                            descr = desc.get_text()
+                            data['description'].append(descr)
+                            time.sleep(0.10)
+
+                    time.sleep(0.10)
+
+                else:
+                    print(f'Ошибка при загрузке страницы: {response.status_code}')
+                    time.sleep(0.10)
+    return data
