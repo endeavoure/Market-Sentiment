@@ -244,6 +244,7 @@ def StrategiesBCS() -> pd.DataFrame:
 
     with open('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result_descriptions.json', 'w') as fp:
         json.dump(data_d, fp)
+    
     df_descriptions = pd.read_json('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result_descriptions.json')
     df_titles = pd.read_json('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result.json')
     df_result = pd.concat([df_titles, df_descriptions], axis=1)
