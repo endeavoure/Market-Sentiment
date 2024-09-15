@@ -2,8 +2,19 @@ import requests
 import pandas as pd
 import feedparser
 import time
+import selenium
+import json
+import os
+
 from bs4 import BeautifulSoup
 from variables import api_key
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 
 def APIparse(df: pd.DataFrame, num_pages: int) -> pd.DataFrame:
@@ -135,3 +146,110 @@ def MKparse(years: tuple, months: tuple, days: tuple) -> dict:
                     print(f'Ошибка при загрузке страницы: {response.status_code}')
                     time.sleep(0.10)
     return data
+
+def StrategiesBCS() -> pd.DataFrame:
+    """
+    Парсит финансовые рекомендации с bcs при помощи BS4 и Selenium
+    :return: pd.DataFrame, включающий в себя titles, hrefs, decriptions и dates 
+
+    """
+    url = 'https://bcs-express.ru/category/torgovye-rekomendacii'
+    driver = webdriver.Chrome()
+    driver.get(url)
+
+    data = {'title': [], 'href': []}
+    scroll_pause_time = 2
+    scroll_height = driver.execute_script("return document.body.scrollHeight")
+    last_height = 0
+    button = None
+
+    while True:
+        driver.execute_script("window.scrollBy(0, 800)")
+        time.sleep(scroll_pause_time)
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'html.parser')
+        titles = soup.find_all('a', class_='iKzE')
+
+        for headline in titles:
+            data['title'].append(headline)
+            href = headline.get('href')
+            data['href'].append(href)
+
+        new_scroll_height = driver.execute_script("return document.body.scrollHeight")
+        
+        if new_scroll_height == scroll_height:
+            print('Достигнут конец страницы')
+            try:
+                button = WebDriverWait(driver, 2).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "[data-id='button-more']"))
+                )
+                driver.execute_script("arguments[0].scrollIntoView(true);", button)
+                time.sleep(scroll_pause_time)
+                driver.execute_script("arguments[0].click();", button)
+                print("Кнопка успешно нажата.")
+                time.sleep(scroll_pause_time)
+            except:
+                print('Заебал листать долбоёб')
+                break
+            
+        scroll_height = new_scroll_height
+
+    text_dict = {'title': [], 'href': []}
+
+    for tit in list(set(data['title'])):
+        title = tit.get_text()
+        text_dict['title'].append(title)
+        text_dict['href'].append(tit.get('href'))
+
+    with open('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result.json', 'w') as fp:
+        json.dump(text_dict, fp)
+
+    df = pd.read_json('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result.json')
+    links = df['hrefs']
+    data_d = {'description': [], 'publishedAt': []}
+    driver = webdriver.Chrome()
+    counter = 0
+
+    for link in links:
+        counter += 1
+        driver.get(link)
+        if counter == 1:
+            time.sleep(10)
+        else:
+            time.sleep(0.2)
+            page_source = driver.page_source
+            soup = BeautifulSoup(page_source, 'html.parser')
+
+            dates = soup.find_all('time', class_='vwGl')
+            time.sleep(0.1)
+            descriptions = soup.find_all('div', class_='YjHz UBOr RkGZ')
+            time.sleep(0.1)
+
+            if descriptions == []:
+                data_d['description'].append('void')
+            if dates == []:
+                data_d['publishedAt'].append('void')
+
+            for description in descriptions:
+                desc = description.get_text()
+                data_d['description'].append(desc)
+                
+            for date in dates:
+                d = date.get_text()
+                data_d['publishedAt'].append(d)
+            
+            print(f'Описаний записано: {counter}')
+            
+            time.sleep(0.1)
+
+    with open('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result_descriptions.json', 'w') as fp:
+        json.dump(data_d, fp)
+    df_descriptions = pd.read_json('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result_descriptions.json')
+    df_titles = pd.read_json('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result.json')
+    df_result = pd.concat([df_titles, df_descriptions], axis=1)
+    df_result.to_json('/Users/alexanderknyshov/Desktop/LLM/Data/datasets/recommendations.json', orient='records', force_ascii=False)
+
+    os.remove('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result.json')
+    os.remove('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result_descriptions.json')
+
+    return df_descriptions
