@@ -147,7 +147,7 @@ def MKparse(years: tuple, months: tuple, days: tuple) -> dict:
                     time.sleep(0.10)
     return data
 
-def StrategiesBCS() -> pd.DataFrame:
+def RecommendationsBCS() -> pd.DataFrame:
     """
     Парсит финансовые рекомендации с bcs при помощи BS4 и Selenium
     :return: pd.DataFrame, включающий в себя titles, hrefs, decriptions и dates 
@@ -254,3 +254,88 @@ def StrategiesBCS() -> pd.DataFrame:
     os.remove('/Users/alexanderknyshov/Desktop/LLM/Data/drafts/result_descriptions.json')
 
     return df_descriptions
+
+def RecommendationsInvest() -> pd.DataFrame:
+    """
+    Парсит финансовые рекомендации с invest при помощи BS4 и Selenium
+    :return: pd.DataFrame, включающий в себя titles, decriptions и dates 
+
+    """
+    url = 'https://investfuture.ru/stocks/articles'
+    driver = webdriver.Chrome()
+    driver.get(url)
+    time.sleep(10)
+
+    data = {'title': []}
+    scroll_pause_time = 2
+    last_height = 0
+    button = None
+
+    while True:
+        driver.execute_script("window.scrollBy(0, 100)")
+        time.sleep(scroll_pause_time)
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'html.parser')
+        titles = soup.find_all('div', class_='article-list row')
+
+        for headline in titles:
+            data['title'].append(headline)
+        try:
+            button = WebDriverWait(driver, 2).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "[id='a_next_page']"))
+            )
+            driver.execute_script("arguments[0].scrollIntoView(true);", button)
+            time.sleep(scroll_pause_time)
+            driver.execute_script("arguments[0].click();", button)
+            print("Кнопка успешно нажата.")
+            time.sleep(scroll_pause_time)
+        except:
+            print('Не вижу кнопку, ебашу дальше')
+            break
+        
+    new = list(set(data['title']))
+    for i in range(len(new)):
+        new[i] = 'https://investfuture.ru/stocks' + new[i].find('a').get('href')
+
+    data = {'title': [],
+        'description': [],
+        'publishedAt': []
+        }
+
+    counter = 0
+    for link in new:
+        counter += 1
+        driver.get(link)
+        if counter == 1:
+            time.sleep(10)
+        else:
+            time.sleep(0.1)
+
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'html.parser')
+
+        time.sleep(0.05)
+        
+        titles = soup.find_all('h1', attrs={'itemprop': 'name'})
+        dates = soup.find_all('span', class_='published', attrs={'itemprop': 'datePublished'})
+        descriptions = soup.find_all('div', attrs={'itemprop': 'articleBody'})
+
+        for title in titles:
+            tit = title.get_text()
+            data['title'].append(tit)
+            print(f'Title {counter}: {tit}')
+        for date in dates:
+            d = date.get_text()
+            data['publishedAt'].append(d)
+            print(f'Date {counter}: {d}')
+        for description in descriptions:
+            desc = description.get_text()
+            data['description'].append(desc)
+            print(f'Description {counter}: {desc}')
+            
+        time.sleep(0.05)
+
+    df = pd.DataFrame(data)
+    df.to_json('/Users/alexanderknyshov/Desktop/LLM/Data/datasets/invest_recommendations.json', orient='records', force_ascii=False)
+
+    return df
