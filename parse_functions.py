@@ -255,13 +255,17 @@ def RecommendationsBCS() -> pd.DataFrame:
 
     return df_descriptions
 
-def RecommendationsInvest() -> pd.DataFrame:
+def RecommendationsInvest(switch: int) -> pd.DataFrame:
     """
     Парсит финансовые рекомендации с invest при помощи BS4 и Selenium
     :return: pd.DataFrame, включающий в себя titles, decriptions и dates 
 
     """
-    url = 'https://investfuture.ru/stocks/articles'
+    if switch == 1:
+        url = 'https://investfuture.ru/stocks/articles'
+    else:
+        url = 'https://investfuture.ru/stocks/news'
+    
     driver = webdriver.Chrome()
     driver.get(url)
     time.sleep(10)
