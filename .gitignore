@@ -10,3 +10,5 @@ mk_parse_draft.ipynb
 .DS_Store
 .DS_Store
 .DS_Store
+/model_ft/model
+/model_ft/results
